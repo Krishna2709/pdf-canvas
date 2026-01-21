@@ -4,50 +4,124 @@ This document provides guidance for AI assistants working on the pdf-canvas proj
 
 ## Project Overview
 
-**pdf-canvas** is a project for PDF rendering and manipulation using canvas-based technologies. The repository is currently in its initial setup phase.
+**pdf-canvas** is a document review web application that replicates ExtendAI Studio's PDF review UI. It features a split-view layout with a PDF viewer on the left and an extraction panel on the right, with text-based citation highlighting computed from citation text (no bounding boxes required).
 
 ## Repository Structure
 
 ```
 pdf-canvas/
-├── CLAUDE.md          # This file - AI assistant guidance
-├── .git/              # Git version control
-└── [future structure will be documented as code is added]
+├── CLAUDE.md                  # This file - AI assistant guidance
+├── README.md                  # Project documentation
+├── frontend/                  # React + TypeScript + Vite application
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── tailwind.config.js
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx           # Application entry point
+│       ├── vite-env.d.ts
+│       ├── components/        # React components
+│       │   ├── App.tsx              # Main application shell
+│       │   ├── PdfViewer.tsx        # PDF rendering with PDF.js
+│       │   ├── PdfPage.tsx          # Individual page with text layer
+│       │   ├── PdfToolbar.tsx       # Zoom, navigation, rotate, download
+│       │   ├── HighlightOverlay.tsx # Citation highlight rectangles
+│       │   ├── ExtractionPanel.tsx  # Right panel with extracted fields
+│       │   ├── FieldCard.tsx        # Individual field display
+│       │   ├── CitationButton.tsx   # Citation click/hover handlers
+│       │   └── UploadZone.tsx       # PDF file upload
+│       ├── store/
+│       │   └── useStore.ts          # Zustand global state
+│       ├── types/
+│       │   └── index.ts             # TypeScript type definitions
+│       ├── utils/
+│       │   ├── TextNormalizer.ts    # Text normalization for matching
+│       │   ├── TextCache.ts         # Page text content caching
+│       │   └── CitationResolver.ts  # Citation-to-highlight resolution
+│       └── styles/
+│           └── index.css            # Tailwind + custom styles
+└── backend/                   # Node.js + Express API
+    ├── package.json
+    ├── tsconfig.json
+    └── src/
+        ├── index.ts                 # Express server setup
+        └── utils/
+            └── mockExtraction.ts    # Mock extraction data generator
 ```
 
-## Development Guidelines
-
-### Getting Started
-
-When this project is set up, typical commands will likely include:
+## Development Commands
 
 ```bash
-# Install dependencies (when package.json exists)
+# Backend development (runs on port 3001)
+cd backend
 npm install
-# or
-yarn install
-# or
-pnpm install
-
-# Start development server
 npm run dev
 
-# Build for production
-npm run build
+# Frontend development (runs on port 3000, proxies to backend)
+cd frontend
+npm install
+npm run dev
 
-# Run tests
-npm test
-
-# Lint code
-npm run lint
+# Production builds
+cd frontend && npm run build
+cd backend && npm run build && npm start
 ```
 
-### Code Style Conventions
+## Key Technical Details
 
-1. **TypeScript Preferred**: Use TypeScript for type safety when working with PDF structures and canvas operations
-2. **Modular Design**: Keep PDF parsing, rendering, and UI logic separated
-3. **Error Handling**: PDF operations can fail - always handle errors gracefully
-4. **Memory Management**: PDF rendering can be memory-intensive; clean up resources properly
+### PDF.js Integration
+
+- Uses Mozilla PDF.js 4.x with text layer enabled
+- Worker loaded from CDN: `cdnjs.cloudflare.com/ajax/libs/pdf.js/{version}/pdf.worker.min.js`
+- Each page renders: canvas (visuals) + text layer (selectable/searchable text)
+- Text content extracted via `page.getTextContent()` for citation matching
+
+### Citation Resolution Algorithm
+
+The `CitationResolver` in `frontend/src/utils/CitationResolver.ts` implements a multi-step matching strategy:
+
+1. **Candidate Page Selection**: pageHint → nearby pages → all pages
+2. **Text Normalization**: Unicode NFKC, lowercase, remove hyphenation, collapse whitespace
+3. **Matching Attempts**:
+   - Strict: Exact substring with punctuation
+   - Loose: Alphanumeric-only substring
+   - Fuzzy: Trigram similarity (threshold ≥ 0.82)
+4. **DOM Range Conversion**: Match indices → text layer spans → `Range.getClientRects()`
+
+### State Management
+
+Zustand store (`frontend/src/store/useStore.ts`) manages:
+- Document URL and extraction results
+- Viewer state (scale, rotation, current page)
+- Page text cache (lazy-loaded per page)
+- Active/hovered citation highlighting
+
+### Data Contract
+
+```typescript
+interface ExtractionResult {
+  documentId: string;
+  pageCount: number;
+  fields: Field[];
+}
+
+interface Citation {
+  id: string;
+  pageHint?: number;    // Optional 1-indexed page number
+  quote: string;        // Text to find and highlight
+  contextBefore?: string;
+  contextAfter?: string;
+}
+```
+
+## Code Style Conventions
+
+1. **TypeScript**: Strict mode enabled, explicit types for public APIs
+2. **React**: Functional components with hooks, avoid class components
+3. **Styling**: Tailwind CSS utilities + custom CSS classes in `index.css`
+4. **Imports**: Use `@/` alias for `src/` directory imports
+5. **State**: Zustand for global state, local state for component-specific UI
 
 ### Commit Message Format
 
@@ -59,87 +133,62 @@ Follow conventional commits:
 - `test:` - Adding or updating tests
 - `chore:` - Maintenance tasks
 
-Example: `feat: add PDF page rotation support`
-
-### Branch Naming
-
-- Feature branches: `feature/description`
-- Bug fixes: `fix/description`
-- Claude-specific branches: `claude/claude-md-*`
-
-## Key Technical Considerations
-
-### PDF Processing
-
-- PDFs can be complex with embedded fonts, images, annotations
-- Consider using established libraries like `pdf.js` or `pdfkit`
-- Handle encrypted/password-protected PDFs appropriately
-- Be mindful of large file sizes and pagination
-
-### Canvas Operations
-
-- Use requestAnimationFrame for smooth rendering
-- Implement proper scaling for high-DPI displays
-- Handle canvas context state (save/restore)
-- Consider WebGL for performance-critical operations
-
-### Common Patterns to Follow
-
-1. **Lazy Loading**: Load PDF pages on demand
-2. **Caching**: Cache rendered pages when appropriate
-3. **Worker Threads**: Use Web Workers for heavy PDF operations
-4. **Responsive Design**: Handle different viewport sizes
-
-## Testing Guidelines
-
-When tests are implemented:
-
-1. Unit tests for PDF parsing logic
-2. Integration tests for rendering pipeline
-3. Visual regression tests for canvas output
-4. Performance benchmarks for large documents
-
-## Security Considerations
-
-- Validate PDF input to prevent malicious files
-- Sanitize any text extracted from PDFs before display
-- Be cautious with external URL references in PDFs
-- Handle cross-origin restrictions properly
+Example: `feat: add support for multi-page citation spans`
 
 ## AI Assistant Instructions
 
 ### When Working on This Codebase
 
-1. **Explore First**: Always understand existing code before making changes
-2. **Keep Changes Focused**: Make minimal, targeted modifications
-3. **Test Thoroughly**: Verify changes don't break existing functionality
-4. **Document Changes**: Update this file when project structure changes significantly
+1. **Understand the Flow**: PDF upload → extraction API → viewer render → citation click → highlight
+2. **Preserve Text Layer**: The text layer is critical for citation matching - don't disable it
+3. **Test Citation Matching**: When modifying `CitationResolver`, test with various quote formats
+4. **Handle Edge Cases**: Multi-line text, duplicate quotes, fuzzy matches, zoom/rotate
+
+### Key Files to Understand
+
+| File | Purpose |
+|------|---------|
+| `PdfViewer.tsx` | Loads PDF, manages pages, handles scrolling |
+| `PdfPage.tsx` | Renders canvas + text layer per page |
+| `CitationResolver.ts` | Core matching logic - the brain of highlighting |
+| `TextNormalizer.ts` | Text preparation for reliable matching |
+| `HighlightOverlay.tsx` | Renders yellow rectangles over matched text |
+| `useStore.ts` | Global state including citation matches cache |
+
+### Common Modification Scenarios
+
+| Task | Approach |
+|------|----------|
+| Add new extraction field type | Update `types/index.ts`, adjust `FieldCard.tsx` display |
+| Improve matching accuracy | Modify `CitationResolver.ts` matching logic |
+| Change highlight appearance | Edit `.highlight-rect` styles in `index.css` |
+| Add PDF annotation support | Extend `PdfPage.tsx`, may need annotation layer |
+| Optimize large PDFs | Implement page virtualization in `PdfViewer.tsx` |
 
 ### Code Quality Checklist
 
 Before committing:
-- [ ] Code compiles without errors
-- [ ] No new linting warnings
-- [ ] Tests pass (when available)
-- [ ] Changes are focused and minimal
-- [ ] No hardcoded secrets or credentials
+- [ ] TypeScript compiles without errors (`npm run build`)
+- [ ] Citation highlighting works for test documents
+- [ ] Zoom/rotate doesn't break highlights
+- [ ] Upload flow completes successfully
+- [ ] No console errors in browser
 
-### Common Tasks
+## API Endpoints
 
-| Task | Approach |
-|------|----------|
-| Add new PDF feature | Check existing utilities first, extend if possible |
-| Fix rendering bug | Reproduce issue, check canvas state, verify fix |
-| Improve performance | Profile first, optimize bottlenecks, benchmark |
-| Update dependencies | Test thoroughly after updates |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/upload` | Upload PDF, returns extraction JSON |
+| GET | `/api/extraction/:id` | Get extraction for document |
+| GET | `/uploads/:filename` | Serve uploaded PDF files |
 
 ## Resources
 
-Useful references for PDF/Canvas development:
 - [PDF.js Documentation](https://mozilla.github.io/pdf.js/)
-- [MDN Canvas API](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API)
-- [PDF Specification](https://www.adobe.com/devnet/pdf/pdf_reference.html)
+- [Zustand Documentation](https://github.com/pmndrs/zustand)
+- [Tailwind CSS](https://tailwindcss.com/docs)
+- [Vite Configuration](https://vitejs.dev/config/)
 
 ---
 
-*This document will be updated as the project evolves. Last updated: 2026-01-21*
+*Last updated: 2026-01-21*

@@ -1,0 +1,39 @@
+{
+  "name": "pdf-canvas",
+  "version": "1.0.0",
+  "description": "PDF document review application with text-based citation highlighting",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "start": "cd backend && npm start"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Krishna2709/pdf-canvas.git"
+  },
+  "keywords": [
+    "pdf",
+    "viewer",
+    "canvas",
+    "document-review",
+    "citation-highlighting",
+    "pdfjs"
+  ],
+  "license": "MIT"
+}
